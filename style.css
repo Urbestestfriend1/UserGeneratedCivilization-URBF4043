@@ -1,24 +1,23 @@
 body {
     margin: 0;
     overflow: hidden;
-    background: #0f0f14;
-    font-family: Arial, sans-serif;
+    background: #0e0f14;
+    user-select: none; /* 🚫 removes drag ghost behavior */
 }
 
 #map-container {
     width: 100vw;
     height: 100vh;
     position: relative;
+    overflow: hidden;
     cursor: grab;
-    user-select: none;
 }
 
-#map, #overlay, #colorCanvas {
+#map, #overlay, #buffer {
     position: absolute;
     top: 0;
     left: 0;
     transform-origin: 0 0;
-    user-select: none;
     pointer-events: none;
 }
 
@@ -30,11 +29,12 @@ body {
     position: absolute;
     right: 20px;
     top: 20px;
-    background: rgba(20,20,30,0.95);
-    color: white;
+    width: 260px;
     padding: 15px;
     border-radius: 12px;
-    width: 260px;
+    background: rgba(20,20,30,0.95);
+    color: white;
+    backdrop-filter: blur(10px);
 }
 
 .hidden {
