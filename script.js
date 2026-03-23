@@ -68,10 +68,23 @@ function getNation(pixel) {
 
     if (c[0] < 10 && c[1] < 10 && c[2] < 10) return null;
 
+    let best = null;
+    let bestDist = Infinity;
+
     for (const n of nations) {
-        if (colorMatch(c, n.color)) return n;
+        const d =
+            (c[0] - n.color[0]) ** 2 +
+            (c[1] - n.color[1]) ** 2 +
+            (c[2] - n.color[2]) ** 2;
+
+        if (d < bestDist) {
+            bestDist = d;
+            best = n;
+        }
     }
-    return null;
+
+    // IMPORTANT threshold
+    return bestDist < 1200 ? best : null;
 }
 
 // --------------------
