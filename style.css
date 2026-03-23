@@ -1,0 +1,41 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #0f0f14;
+    font-family: Arial, sans-serif;
+}
+
+#map-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    cursor: grab;
+}
+
+#map, #overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+}
+
+#overlay {
+    pointer-events: none;
+}
+
+#infoPanel {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    width: 260px;
+    background: rgba(20,20,30,0.95);
+    color: white;
+    padding: 15px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+.hidden {
+    display: none;
+}
