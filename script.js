@@ -12,7 +12,7 @@ let mapW = 0;
 let mapH = 0;
 
 // --------------------
-// 🧠 Nations (YOU EDIT THIS)
+// 🧠 Nations
 // --------------------
 const nations = [
     {
@@ -48,47 +48,42 @@ const nations = [
 ];
 
 // --------------------
-// 🧠 FIX 1: Color matching WITH tolerance groups
-// (solves duplicate / slightly different colors)
+// 🧠 Color distance (REAL FIX)
 // --------------------
-function colorMatch(c1, c2) {
-    const d =
-        (c1[0] - c2[0]) ** 2 +
-        (c1[1] - c2[1]) ** 2 +
-        (c1[2] - c2[2]) ** 2;
-
-    return d < 900; // tolerance (30^2)
+function colorDistance(a, b) {
+    return (
+        (a[0] - b[0]) ** 2 +
+        (a[1] - b[1]) ** 2 +
+        (a[2] - b[2]) ** 2
+    );
 }
 
 // --------------------
-// 🧠 Find nation from pixel
+// 🧠 BEST MATCH (fixes ALTA-only bug)
 // --------------------
-function getNation(pixel) {
+function getBestNation(pixel) {
     const c = [pixel[0], pixel[1], pixel[2]];
 
+    // ignore ocean / background
     if (c[0] < 10 && c[1] < 10 && c[2] < 10) return null;
 
     let best = null;
     let bestDist = Infinity;
 
     for (const n of nations) {
-        const d =
-            (c[0] - n.color[0]) ** 2 +
-            (c[1] - n.color[1]) ** 2 +
-            (c[2] - n.color[2]) ** 2;
-
+        const d = colorDistance(c, n.color);
         if (d < bestDist) {
             bestDist = d;
             best = n;
         }
     }
 
-    // IMPORTANT threshold
-    return bestDist < 1200 ? best : null;
+    // threshold so random noise doesn't trigger
+    return bestDist < 2500 ? best : null;
 }
 
 // --------------------
-// 🖼️ Load image properly (FIXES "stuck top-left bug")
+// 🖼️ Load image
 // --------------------
 img.onload = () => {
     mapW = img.width;
@@ -107,7 +102,7 @@ img.onload = () => {
 };
 
 // --------------------
-// 🎮 CAMERA SYSTEM (FIXED DRAGGING)
+// 🎮 Camera
 // --------------------
 let scale = 1;
 let x = 0;
@@ -124,7 +119,7 @@ function update() {
 }
 
 // --------------------
-// 🖱️ POINTER EVENTS (fixes jitter + ghost drag)
+// 🖱️ Drag
 // --------------------
 map.addEventListener("pointerdown", (e) => {
     dragging = true;
@@ -132,18 +127,13 @@ map.addEventListener("pointerdown", (e) => {
     lastY = e.clientY;
 });
 
-window.addEventListener("pointerup", () => {
-    dragging = false;
-});
+window.addEventListener("pointerup", () => dragging = false);
 
 window.addEventListener("pointermove", (e) => {
     if (!dragging) return;
 
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-
-    x += dx;
-    y += dy;
+    x += e.clientX - lastX;
+    y += e.clientY - lastY;
 
     lastX = e.clientX;
     lastY = e.clientY;
@@ -152,7 +142,7 @@ window.addEventListener("pointermove", (e) => {
 });
 
 // --------------------
-// 🔍 ZOOM (stable, no jump)
+// 🔍 Zoom
 // --------------------
 map.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -171,7 +161,13 @@ map.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 // --------------------
-// 🎯 CLICK DETECTION (stable + scaled correctly)
+// 🎯 STATE
+// --------------------
+let selectedNation = null;
+let hoverNation = null;
+
+// --------------------
+// 🖱️ CLICK
 // --------------------
 map.addEventListener("click", (e) => {
     const rect = map.getBoundingClientRect();
@@ -181,13 +177,94 @@ map.addEventListener("click", (e) => {
 
     const pixel = hctx.getImageData(px, py, 1, 1).data;
 
-    const nation = getNation(pixel);
+    const nation = getBestNation(pixel);
 
-    if (nation) showNation(nation);
+    if (nation) {
+        selectedNation = nation;
+        showNation(nation);
+        drawHighlight(nation);
+    }
 });
 
 // --------------------
-// 📦 UI PANEL
+// 🖱️ HOVER
+// --------------------
+map.addEventListener("mousemove", (e) => {
+    const rect = map.getBoundingClientRect();
+
+    const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
+    const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
+
+    const pixel = hctx.getImageData(px, py, 1, 1).data;
+
+    const nation = getBestNation(pixel);
+
+    if (nation !== hoverNation) {
+        hoverNation = nation;
+
+        if (!selectedNation) {
+            drawHighlight(nation);
+        }
+    }
+});
+
+// --------------------
+// 🔥 OUTLINE HIGHLIGHT (IMPORTANT)
+// --------------------
+function drawHighlight(nation) {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+
+    if (!nation) return;
+
+    const imgData = hctx.getImageData(0, 0, mapW, mapH);
+    const data = imgData.data;
+
+    const target = nation.color;
+
+    for (let y = 1; y < mapH - 1; y++) {
+        for (let x = 1; x < mapW - 1; x++) {
+
+            const i = (y * mapW + x) * 4;
+
+            const c = [data[i], data[i+1], data[i+2]];
+
+            if (colorDistance(c, target) < 1000) {
+
+                // outline check (edge detection)
+                const left = (y * mapW + (x - 1)) * 4;
+                const right = (y * mapW + (x + 1)) * 4;
+                const up = ((y - 1) * mapW + x) * 4;
+                const down = ((y + 1) * mapW + x) * 4;
+
+                const neighbors = [
+                    data[left], data[left+1], data[left+2],
+                    data[right], data[right+1], data[right+2],
+                    data[up], data[up+1], data[up+2],
+                    data[down], data[down+1], data[down+2]
+                ];
+
+                let edge = false;
+
+                for (let j = 0; j < neighbors.length; j += 3) {
+                    const nc = [neighbors[j], neighbors[j+1], neighbors[j+2]];
+
+                    if (colorDistance(nc, target) > 1000) {
+                        edge = true;
+                        break;
+                    }
+                }
+
+                if (edge) {
+                    octx.fillStyle = "rgba(255,255,255,0.9)";
+                    octx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+    }
+}
+
+// --------------------
+// 📦 UI
 // --------------------
 function showNation(n) {
     document.getElementById("infoPanel").classList.remove("hidden");
