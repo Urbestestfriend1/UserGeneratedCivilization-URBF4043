@@ -6,7 +6,7 @@ const octx = overlay.getContext("2d");
 const hctx = hidden.getContext("2d");
 
 const img = new Image();
-img.src = "fullmap.png";
+img.src = "map.png";
 
 let mapW = 0;
 let mapH = 0;
