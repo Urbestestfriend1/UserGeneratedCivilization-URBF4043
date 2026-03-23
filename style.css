@@ -1,6 +1,8 @@
 body {
     margin: 0;
     overflow: hidden;
+    background: #0f1116;
+    user-select: none;
 }
 
 #map-container {
@@ -8,24 +10,19 @@ body {
     height: 100vh;
     position: relative;
     overflow: hidden;
-    cursor: grab;
+    touch-action: none; /* IMPORTANT: fixes jitter on drag */
 }
 
-#map, #overlay, #buffer {
+#map, #overlay {
     position: absolute;
     top: 0;
     left: 0;
     transform-origin: 0 0;
-    pointer-events: none;
+    will-change: transform;
 }
 
-#map {
-    position: absolute;
-    top: 0;
-    left: 0;
-    user-select: none;
-    -webkit-user-drag: none;
-    cursor: grab;
+#overlay {
+    pointer-events: none;
 }
 
 #infoPanel {
@@ -33,11 +30,10 @@ body {
     right: 20px;
     top: 20px;
     width: 260px;
-    padding: 15px;
-    border-radius: 12px;
-    background: rgba(20,20,30,0.95);
+    background: rgba(25,25,35,0.95);
     color: white;
-    backdrop-filter: blur(10px);
+    padding: 14px;
+    border-radius: 12px;
 }
 
 .hidden {
