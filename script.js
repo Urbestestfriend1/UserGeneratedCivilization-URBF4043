@@ -23,8 +23,8 @@ map.onload = () => {
 // ------------------------
 const nations = [
     {
+        id: "ALTA",
         color: [255, 0, 0],
-        name: "ALTA",
         allies: [],
         rivals: [],
         population: "120,000",
@@ -48,26 +48,30 @@ function colorDistance(c1, c2) {
 // ------------------------
 // 🔍 Find Nation
 // ------------------------
-function getNationFromPixel(pixel) {
+function getClosestNation(pixel) {
     const clicked = [pixel[0], pixel[1], pixel[2]];
 
-    // Ignore ocean
-    if (clicked[0] < 10 && clicked[1] < 10 && clicked[2] < 10) return null;
+    // ignore ocean / white noise
+    if (clicked[0] > 245 && clicked[1] > 245 && clicked[2] > 245) return null;
 
     let best = null;
-    let bestDist = Infinity;
+    let bestDist = 999999;
 
     for (const n of nations) {
-        const dist = colorDistance(clicked, n.color);
-        if (dist < bestDist) {
-            bestDist = dist;
+        const d =
+            Math.abs(clicked[0] - n.color[0]) +
+            Math.abs(clicked[1] - n.color[1]) +
+            Math.abs(clicked[2] - n.color[2]);
+
+        if (d < bestDist) {
+            bestDist = d;
             best = n;
         }
     }
 
-    return bestDist < 50 ? best : null;
+    // higher tolerance = fixes duplicates / anti-alias issues
+    return bestDist < 80 ? best : null;
 }
-
 // ------------------------
 // 🖱️ Mouse Detection
 // ------------------------
