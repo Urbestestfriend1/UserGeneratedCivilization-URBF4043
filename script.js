@@ -5,17 +5,17 @@ const ctx = canvas.getContext("2d");
 const overlay = document.getElementById("overlay");
 const octx = overlay.getContext("2d");
 
-// Load same image into hidden canvas
-const img = new Image();
-img.src = "images/map.png";
+// Wait for the ACTUAL map element to load
+map.onload = () => {
+    canvas.width = map.naturalWidth;
+    canvas.height = map.naturalHeight;
 
-img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    overlay.width = img.width;
-    overlay.height = img.height;
+    overlay.width = map.naturalWidth;
+    overlay.height = map.naturalHeight;
 
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(map, 0, 0);
+
+    console.log("Map loaded successfully");
 };
 
 // ------------------------
