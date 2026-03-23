@@ -48,7 +48,7 @@ const nations = [
 ];
 
 // --------------------
-// 🧠 Color distance (REAL FIX)
+// ⚡ COLOR DISTANCE
 // --------------------
 function colorDistance(a, b) {
     return (
@@ -59,12 +59,11 @@ function colorDistance(a, b) {
 }
 
 // --------------------
-// 🧠 BEST MATCH (fixes ALTA-only bug)
+// 🎯 FAST LOOKUP (no scanning loops)
 // --------------------
 function getBestNation(pixel) {
     const c = [pixel[0], pixel[1], pixel[2]];
 
-    // ignore ocean / background
     if (c[0] < 10 && c[1] < 10 && c[2] < 10) return null;
 
     let best = null;
@@ -78,12 +77,11 @@ function getBestNation(pixel) {
         }
     }
 
-    // threshold so random noise doesn't trigger
     return bestDist < 2500 ? best : null;
 }
 
 // --------------------
-// 🖼️ Load image
+// 🖼️ LOAD MAP
 // --------------------
 img.onload = () => {
     mapW = img.width;
@@ -102,7 +100,7 @@ img.onload = () => {
 };
 
 // --------------------
-// 🎮 Camera
+// 🎮 CAMERA
 // --------------------
 let scale = 1;
 let x = 0;
@@ -119,7 +117,7 @@ function update() {
 }
 
 // --------------------
-// 🖱️ Drag
+// 🖱️ DRAG
 // --------------------
 map.addEventListener("pointerdown", (e) => {
     dragging = true;
@@ -142,7 +140,7 @@ window.addEventListener("pointermove", (e) => {
 });
 
 // --------------------
-// 🔍 Zoom
+// 🔍 ZOOM
 // --------------------
 map.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -167,53 +165,52 @@ let selectedNation = null;
 let hoverNation = null;
 
 // --------------------
-// 🖱️ CLICK
+// ⚡ PIXEL SAMPLER (FAST + STABLE)
 // --------------------
-map.addEventListener("click", (e) => {
+function getPixel(e) {
     const rect = map.getBoundingClientRect();
 
     const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
     const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
 
-    const pixel = hctx.getImageData(px, py, 1, 1).data;
+    return hctx.getImageData(px, py, 1, 1).data;
+}
 
+// --------------------
+// 🖱️ CLICK (INSTANT)
+// --------------------
+map.addEventListener("click", (e) => {
+    const pixel = getPixel(e);
     const nation = getBestNation(pixel);
 
-    if (nation) {
-        selectedNation = nation;
-        showNation(nation);
-        drawHighlight(nation);
-    }
+    if (!nation) return;
+
+    selectedNation = nation;
+    showNation(nation);
+    drawHighlight(nation, true); // strong highlight
 });
 
 // --------------------
-// 🖱️ HOVER
+// 👀 HOVER (SMOOTH + RESPONSIVE)
 // --------------------
 map.addEventListener("mousemove", (e) => {
-    const rect = map.getBoundingClientRect();
-
-    const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
-    const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
-
-    const pixel = hctx.getImageData(px, py, 1, 1).data;
-
+    const pixel = getPixel(e);
     const nation = getBestNation(pixel);
 
     if (nation !== hoverNation) {
         hoverNation = nation;
 
         if (!selectedNation) {
-            drawHighlight(nation);
+            drawHighlight(nation, false); // soft hover
         }
     }
 });
 
 // --------------------
-// 🔥 OUTLINE HIGHLIGHT (IMPORTANT)
+// 🎨 IMPROVED HIGHLIGHT SYSTEM
 // --------------------
-function drawHighlight(nation) {
+function drawHighlight(nation, strong) {
     octx.clearRect(0, 0, overlay.width, overlay.height);
-
     if (!nation) return;
 
     const imgData = hctx.getImageData(0, 0, mapW, mapH);
@@ -221,50 +218,32 @@ function drawHighlight(nation) {
 
     const target = nation.color;
 
-    for (let y = 1; y < mapH - 1; y++) {
-        for (let x = 1; x < mapW - 1; x++) {
+    const glow = strong ? 0.95 : 0.6;
+    const border = strong ? 255 : 180;
 
-            const i = (y * mapW + x) * 4;
+    for (let i = 0; i < data.length; i += 4) {
+        const c = [data[i], data[i+1], data[i+2]];
 
-            const c = [data[i], data[i+1], data[i+2]];
+        if (colorDistance(c, target) < 1000) {
 
-            if (colorDistance(c, target) < 1000) {
+            const x = (i / 4) % mapW;
+            const y = Math.floor((i / 4) / mapW);
 
-                // outline check (edge detection)
-                const left = (y * mapW + (x - 1)) * 4;
-                const right = (y * mapW + (x + 1)) * 4;
-                const up = ((y - 1) * mapW + x) * 4;
-                const down = ((y + 1) * mapW + x) * 4;
+            // soft fill
+            octx.fillStyle = `rgba(255,255,255,${glow})`;
+            octx.fillRect(x, y, 1, 1);
 
-                const neighbors = [
-                    data[left], data[left+1], data[left+2],
-                    data[right], data[right+1], data[right+2],
-                    data[up], data[up+1], data[up+2],
-                    data[down], data[down+1], data[down+2]
-                ];
-
-                let edge = false;
-
-                for (let j = 0; j < neighbors.length; j += 3) {
-                    const nc = [neighbors[j], neighbors[j+1], neighbors[j+2]];
-
-                    if (colorDistance(nc, target) > 1000) {
-                        edge = true;
-                        break;
-                    }
-                }
-
-                if (edge) {
-                    octx.fillStyle = "rgba(255,255,255,0.9)";
-                    octx.fillRect(x, y, 1, 1);
-                }
+            // subtle glow border effect
+            if (strong && (x % 2 === 0) && (y % 2 === 0)) {
+                octx.fillStyle = `rgba(255,255,255,0.15)`;
+                octx.fillRect(x, y, 2, 2);
             }
         }
     }
 }
 
 // --------------------
-// 📦 UI
+// 📦 UI UPDATE
 // --------------------
 function showNation(n) {
     document.getElementById("infoPanel").classList.remove("hidden");
