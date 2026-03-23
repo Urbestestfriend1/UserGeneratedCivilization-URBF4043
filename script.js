@@ -5,6 +5,8 @@ const ctx = canvas.getContext("2d");
 const overlay = document.getElementById("overlay");
 const octx = overlay.getContext("2d");
 
+map.ondragstart = () => false;
+
 // Wait for the ACTUAL map element to load
 map.onload = () => {
     canvas.width = map.naturalWidth;
@@ -142,40 +144,49 @@ function showInfo(n) {
 // ------------------------
 // 🎥 Pan & Zoom
 // ------------------------
-let scale = 1;
-let originX = 0;
-let originY = 0;
+let isDragging = false;
+let lastX = 0;
+let lastY = 0;
+
+map.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    map.style.cursor = "grabbing";
+});
 
 map.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+
+    const zoomIntensity = 0.12;
+    const zoom = Math.exp(e.deltaY * -zoomIntensity);
+
     scale *= zoom;
+
+    scale = Math.min(Math.max(scale, 0.5), 5);
+
     updateTransform();
+}, { passive: false });
+
+window.addEventListener("mouseup", () => {
+    isDragging = false;
+    map.style.cursor = "grab";
 });
-
-let dragging = false;
-let startX, startY;
-
-map.addEventListener("mousedown", (e) => {
-    dragging = true;
-    startX = e.clientX - originX;
-    startY = e.clientY - originY;
-});
-
-window.addEventListener("mouseup", () => dragging = false);
 
 window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    originX = e.clientX - startX;
-    originY = e.clientY - startY;
+    if (!isDragging) return;
+
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+
+    lastX = e.clientX;
+    lastY = e.clientY;
+
+    originX += dx;
+    originY += dy;
+
     updateTransform();
 });
-
-function updateTransform() {
-    const transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
-    map.style.transform = transform;
-    overlay.style.transform = transform;
-}
 
 // ------------------------
 // 🎯 Center Camera
