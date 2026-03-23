@@ -2,88 +2,90 @@ const map = document.getElementById("map");
 const overlay = document.getElementById("overlay");
 const octx = overlay.getContext("2d");
 
-const colorCanvas = document.getElementById("colorCanvas");
-const cctx = colorCanvas.getContext("2d");
+const buffer = document.getElementById("buffer");
+const bctx = buffer.getContext("2d");
 
-// --------------------
-// Load map into hidden canvas
-// --------------------
 const img = new Image();
 img.src = "fullmap.png";
 
-img.onload = () => {
-    colorCanvas.width = img.width;
-    colorCanvas.height = img.height;
-    overlay.width = img.width;
-    overlay.height = img.height;
+let W, H;
 
-    cctx.drawImage(img, 0, 0);
+img.onload = () => {
+    W = img.width;
+    H = img.height;
+
+    buffer.width = W;
+    buffer.height = H;
+    overlay.width = W;
+    overlay.height = H;
+
+    bctx.drawImage(img, 0, 0);
 };
 
-// --------------------
-// FIXED NATION DATA (IMPORTANT)
-// You MUST ensure colors are UNIQUE-ish
-// --------------------
 const nations = [
-    { color: [255, 0, 0], name: "ALTA", allies: [], rivals: [], population: "120K", provinces: 5, tech: 1, stability: "Max" },
-    { color: [0, 255, 0], name: "Nation B", allies: [], rivals: [], population: "80K", provinces: 3, tech: 1, stability: "Max" },
+    {
+        id: 1,
+        color: [255, 0, 0],
+        name: "ALTA",
+        allies: [],
+        rivals: [],
+        population: "120,000",
+        provinces: 5,
+        tech: 1,
+        stability: "Max"
+    },
+    {
+        id: 2,
+        color: [255, 0, 0], // duplicate allowed now
+        name: "Second Red Nation",
+        allies: [],
+        rivals: [],
+        population: "80,000",
+        provinces: 3,
+        tech: 1,
+        stability: "Max"
+    }
 ];
 
-// --------------------
-// Color matching (robust for messy edges)
-// --------------------
-function dist(a, b) {
+function colorDistance(a, b) {
     return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]);
 }
 
 function getNation(pixel) {
-    const c = [pixel[0], pixel[1], pixel[2]];
+    const p = [pixel[0], pixel[1], pixel[2]];
 
-    // ignore ocean / white noise
-    if (c[0] > 250 && c[1] > 250 && c[2] > 250) return null;
-
-    let best = null;
-    let bestDist = 9999;
+    let matches = [];
 
     for (const n of nations) {
-        const d = dist(c, n.color);
-        if (d < bestDist) {
-            bestDist = d;
-            best = n;
+        const dist = colorDistance(p, n.color);
+        if (dist < 40) {
+            matches.push({ nation: n, dist });
         }
     }
 
-    return bestDist < 60 ? best : null;
+    if (matches.length === 0) return null;
+
+    // pick best match (or first stable one)
+    matches.sort((a,b) => a.dist - b.dist);
+    return matches[0].nation;
 }
 
-// --------------------
-// FIXED PAN / ZOOM SYSTEM (no jitter)
-// --------------------
 let scale = 1;
 let x = 0;
 let y = 0;
 
+let targetX = 0;
+let targetY = 0;
+
 let dragging = false;
-let startX = 0;
-let startY = 0;
+let lastX, lastY;
 
-function applyTransform() {
-    const t = `translate(${x}px, ${y}px) scale(${scale})`;
-    map.style.transform = t;
-    overlay.style.transform = t;
-    colorCanvas.style.transform = t;
-}
+map.addEventListener("dragstart", e => e.preventDefault());
 
-// Prevent ghost drag image
-map.ondragstart = () => false;
-
-// --------------------
-// Smooth drag (FIXED)
-// --------------------
 map.addEventListener("mousedown", (e) => {
     dragging = true;
-    startX = e.clientX - x;
-    startY = e.clientY - y;
+    lastX = e.clientX;
+    lastY = e.clientY;
     map.style.cursor = "grabbing";
 });
 
@@ -95,48 +97,55 @@ window.addEventListener("mouseup", () => {
 window.addEventListener("mousemove", (e) => {
     if (!dragging) return;
 
-    x = e.clientX - startX;
-    y = e.clientY - startY;
+    targetX += (e.clientX - lastX);
+    targetY += (e.clientY - lastY);
 
-    applyTransform();
+    lastX = e.clientX;
+    lastY = e.clientY;
 });
 
-// --------------------
-// Smooth zoom (FIXED center zoom feel)
-// --------------------
+function animate() {
+    x += (targetX - x) * 0.15;
+    y += (targetY - y) * 0.15;
+
+    const transform = `translate(${x}px, ${y}px) scale(${scale})`;
+
+    map.style.transform = transform;
+    overlay.style.transform = transform;
+    buffer.style.transform = transform;
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
 map.addEventListener("wheel", (e) => {
     e.preventDefault();
 
     const zoom = e.deltaY < 0 ? 1.1 : 0.9;
     scale *= zoom;
 
-    scale = Math.min(Math.max(scale, 0.5), 6);
-
-    applyTransform();
+    scale = Math.min(Math.max(scale, 0.5), 5);
 });
 
-// --------------------
-// Click detection (fast + stable)
-// --------------------
-map.addEventListener("click", (e) => {
+let currentNation = null;
+
+map.addEventListener("mousemove", (e) => {
     const rect = map.getBoundingClientRect();
 
-    const cx = (e.clientX - rect.left) * (colorCanvas.width / rect.width);
-    const cy = (e.clientY - rect.top) * (colorCanvas.height / rect.height);
+    const xPos = Math.floor((e.clientX - rect.left) * (W / rect.width));
+    const yPos = Math.floor((e.clientY - rect.top) * (H / rect.height));
 
-    const p = cctx.getImageData(cx, cy, 1, 1).data;
+    const pixel = bctx.getImageData(xPos, yPos, 1, 1).data;
 
-    const nation = getNation(p);
-
-    if (nation) {
-        showInfo(nation);
-        centerOnClick(e);
-    }
+    currentNation = getNation(pixel);
 });
 
-// --------------------
-// UI
-// --------------------
+map.addEventListener("click", () => {
+    if (!currentNation) return;
+    showInfo(currentNation);
+});
+
 function showInfo(n) {
     document.getElementById("nationName").innerText = n.name;
     document.getElementById("allies").innerText = n.allies.join(", ");
@@ -147,17 +156,4 @@ function showInfo(n) {
     document.getElementById("stability").innerText = n.stability;
 
     document.getElementById("infoPanel").classList.remove("hidden");
-}
-
-// --------------------
-// Center camera (smooth-ish)
-// --------------------
-function centerOnClick(e) {
-    const dx = window.innerWidth / 2 - e.clientX;
-    const dy = window.innerHeight / 2 - e.clientY;
-
-    x += dx;
-    y += dy;
-
-    applyTransform();
 }
