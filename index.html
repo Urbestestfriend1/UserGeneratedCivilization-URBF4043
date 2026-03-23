@@ -1,25 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>User Generated Civilation Map - Urbestestfriend1</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>User Generated Civilation Map - Urbestestfriend1</title>
+<link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
 <div id="map-container">
-    <img id="map" src="fullmap.png">
+    <img id="map" src="fullmap.png" draggable="false">
     <canvas id="overlay"></canvas>
-    <canvas id="colorMapCanvas"></canvas>
+    <canvas id="colorCanvas"></canvas>
 </div>
 
 <div id="infoPanel" class="hidden">
-    <h2 id="nationName">Nation</h2>
+    <h2 id="nationName"></h2>
     <p><b>Allies:</b> <span id="allies"></span></p>
     <p><b>Rivals:</b> <span id="rivals"></span></p>
     <p><b>Population:</b> <span id="population"></span></p>
     <p><b>Provinces:</b> <span id="provinces"></span></p>
-    <p><b>Technology:</b> <span id="tech"></span></p>
+    <p><b>Tech:</b> <span id="tech"></span></p>
     <p><b>Stability:</b> <span id="stability"></span></p>
 </div>
 
