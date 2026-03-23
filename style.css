@@ -1,8 +1,6 @@
 body {
     margin: 0;
     overflow: hidden;
-    background: #0e0f14;
-    user-select: none; /* 🚫 removes drag ghost behavior */
 }
 
 #map-container {
@@ -22,7 +20,12 @@ body {
 }
 
 #map {
-    pointer-events: auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    user-select: none;
+    -webkit-user-drag: none;
+    cursor: grab;
 }
 
 #infoPanel {
