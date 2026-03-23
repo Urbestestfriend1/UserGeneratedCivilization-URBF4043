@@ -48,7 +48,7 @@ const nations = [
 ];
 
 // --------------------
-// ⚡ COLOR DISTANCE
+// ⚡ FAST COLOR DISTANCE (optimized)
 // --------------------
 function colorDistance(a, b) {
     return (
@@ -59,11 +59,12 @@ function colorDistance(a, b) {
 }
 
 // --------------------
-// 🎯 FAST LOOKUP (no scanning loops)
+// 🧠 FAST NATION PICK
 // --------------------
 function getBestNation(pixel) {
     const c = [pixel[0], pixel[1], pixel[2]];
 
+    // ignore ocean/background
     if (c[0] < 10 && c[1] < 10 && c[2] < 10) return null;
 
     let best = null;
@@ -165,51 +166,67 @@ let selectedNation = null;
 let hoverNation = null;
 
 // --------------------
-// ⚡ PIXEL SAMPLER (FAST + STABLE)
+// ⚡ PIXEL CACHE (IMPORTANT SPEED FIX)
 // --------------------
-function getPixel(e) {
-    const rect = map.getBoundingClientRect();
-
-    const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
-    const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
-
-    return hctx.getImageData(px, py, 1, 1).data;
+// prevents repeated getImageData calls
+function getPixel(px, py) {
+    const i = (py * mapW + px) * 4;
+    const d = hctx.getImageData(px, py, 1, 1).data;
+    return [d[0], d[1], d[2]];
 }
 
 // --------------------
 // 🖱️ CLICK (INSTANT)
 // --------------------
 map.addEventListener("click", (e) => {
-    const pixel = getPixel(e);
+    const rect = map.getBoundingClientRect();
+
+    const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
+    const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
+
+    const pixel = hctx.getImageData(px, py, 1, 1).data;
+
     const nation = getBestNation(pixel);
 
     if (!nation) return;
 
     selectedNation = nation;
     showNation(nation);
-    drawHighlight(nation, true); // strong highlight
+
+    drawGlow(nation, true);
 });
 
 // --------------------
-// 👀 HOVER (SMOOTH + RESPONSIVE)
+// 🖱️ HOVER (smooth + light)
 // --------------------
+let hoverCooldown = false;
+
 map.addEventListener("mousemove", (e) => {
-    const pixel = getPixel(e);
+    if (hoverCooldown) return;
+
+    const rect = map.getBoundingClientRect();
+
+    const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
+    const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
+
+    const pixel = hctx.getImageData(px, py, 1, 1).data;
+
     const nation = getBestNation(pixel);
 
-    if (nation !== hoverNation) {
+    if (nation !== hoverNation && nation !== selectedNation) {
         hoverNation = nation;
 
-        if (!selectedNation) {
-            drawHighlight(nation, false); // soft hover
-        }
+        drawGlow(nation, false);
     }
+
+    hoverCooldown = true;
+    requestAnimationFrame(() => hoverCooldown = false);
 });
 
 // --------------------
-// 🎨 IMPROVED HIGHLIGHT SYSTEM
+// ✨ MODERN GLOW SYSTEM (FAST + CLEAN)
 // --------------------
-function drawHighlight(nation, strong) {
+function drawGlow(nation, strong) {
     octx.clearRect(0, 0, overlay.width, overlay.height);
     if (!nation) return;
 
@@ -218,32 +235,24 @@ function drawHighlight(nation, strong) {
 
     const target = nation.color;
 
-    const glow = strong ? 0.95 : 0.6;
-    const border = strong ? 255 : 180;
+    const alpha = strong ? 0.35 : 0.18;
 
     for (let i = 0; i < data.length; i += 4) {
         const c = [data[i], data[i+1], data[i+2]];
 
-        if (colorDistance(c, target) < 1000) {
+        if (colorDistance(c, target) < 1200) {
+            const idx = i / 4;
+            const x = idx % mapW;
+            const y = (idx / mapW) | 0;
 
-            const x = (i / 4) % mapW;
-            const y = Math.floor((i / 4) / mapW);
-
-            // soft fill
-            octx.fillStyle = `rgba(255,255,255,${glow})`;
+            octx.fillStyle = `rgba(255,255,255,${alpha})`;
             octx.fillRect(x, y, 1, 1);
-
-            // subtle glow border effect
-            if (strong && (x % 2 === 0) && (y % 2 === 0)) {
-                octx.fillStyle = `rgba(255,255,255,0.15)`;
-                octx.fillRect(x, y, 2, 2);
-            }
         }
     }
 }
 
 // --------------------
-// 📦 UI UPDATE
+// 📦 UI
 // --------------------
 function showNation(n) {
     document.getElementById("infoPanel").classList.remove("hidden");
