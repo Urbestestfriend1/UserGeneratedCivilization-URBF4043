@@ -1,179 +1,169 @@
 const map = document.getElementById("map");
+const overlay = document.getElementById("overlay");
+const hidden = document.getElementById("hidden");
 
-map.src = "fullmap.png";
-
-// -------------------------
-// Canvas (hidden pixel reader)
-// -------------------------
-const canvas = document.createElement("canvas");
-const ctx = canvas.getContext("2d");
+const octx = overlay.getContext("2d");
+const hctx = hidden.getContext("2d");
 
 const img = new Image();
 img.src = "fullmap.png";
 
-img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-};
+let mapW = 0;
+let mapH = 0;
 
-// -------------------------
-// 🌍 Nation Data (color-tolerant system)
-// -------------------------
+// --------------------
+// 🧠 Nations (YOU EDIT THIS)
+// --------------------
 const nations = [
     {
         color: [255, 0, 0],
         name: "ALTA",
         allies: [],
         rivals: [],
-        population: "120,000",
+        population: "120k",
         provinces: 5,
         tech: 1,
         stability: "Max"
     }
 ];
 
-// -------------------------
-// 🎨 Improved color matching (handles duplicates better)
-// -------------------------
-function colorDistance(a, b) {
-    return Math.abs(a[0] - b[0]) +
-           Math.abs(a[1] - b[1]) +
-           Math.abs(a[2] - b[2]);
+// --------------------
+// 🧠 FIX 1: Color matching WITH tolerance groups
+// (solves duplicate / slightly different colors)
+// --------------------
+function colorMatch(c1, c2) {
+    const d =
+        (c1[0] - c2[0]) ** 2 +
+        (c1[1] - c2[1]) ** 2 +
+        (c1[2] - c2[2]) ** 2;
+
+    return d < 900; // tolerance (30^2)
 }
 
-// Group similar pixels more aggressively
+// --------------------
+// 🧠 Find nation from pixel
+// --------------------
 function getNation(pixel) {
     const c = [pixel[0], pixel[1], pixel[2]];
 
-    // ignore ocean / white noise
-    if (c[0] > 245 && c[1] > 245 && c[2] > 245) return null;
     if (c[0] < 10 && c[1] < 10 && c[2] < 10) return null;
 
-    let best = null;
-    let bestScore = 999999;
-
     for (const n of nations) {
-        const d = colorDistance(c, n.color);
-
-        // MUCH looser threshold to handle duplicates & noisy map
-        if (d < bestScore) {
-            bestScore = d;
-            best = n;
-        }
+        if (colorMatch(c, n.color)) return n;
     }
-
-    return bestScore < 80 ? best : null;
+    return null;
 }
 
-// -------------------------
-// 📦 UI
-// -------------------------
-function showInfo(n) {
-    document.getElementById("infoPanel").classList.remove("hidden");
+// --------------------
+// 🖼️ Load image properly (FIXES "stuck top-left bug")
+// --------------------
+img.onload = () => {
+    mapW = img.width;
+    mapH = img.height;
 
-    document.getElementById("nationName").innerText = n.name;
-    document.getElementById("allies").innerText = n.allies.join(", ") || "None";
-    document.getElementById("rivals").innerText = n.rivals.join(", ") || "None";
-    document.getElementById("population").innerText = n.population;
-    document.getElementById("provinces").innerText = n.provinces;
-    document.getElementById("tech").innerText = n.tech;
-    document.getElementById("stability").innerText = n.stability;
-}
+    map.style.width = mapW + "px";
+    map.style.height = mapH + "px";
 
-// -------------------------
-// 🖱️ CLICK + HOVER
-// -------------------------
-let lastNation = null;
+    overlay.width = mapW;
+    overlay.height = mapH;
 
-map.addEventListener("pointermove", (e) => {
-    const rect = map.getBoundingClientRect();
+    hidden.width = mapW;
+    hidden.height = mapH;
 
-    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+    hctx.drawImage(img, 0, 0);
+};
 
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-
-    const nation = getNation(pixel);
-
-    if (nation !== lastNation) {
-        lastNation = nation;
-
-        // simple hover effect (no lag scan!)
-        if (nation) {
-            map.style.filter = "brightness(1.05)";
-        } else {
-            map.style.filter = "none";
-        }
-    }
-});
-
-map.addEventListener("pointerdown", (e) => {
-    const rect = map.getBoundingClientRect();
-
-    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-
-    const pixel = ctx.getImageData(x, y, 1, 1).data;
-
-    const nation = getNation(pixel);
-
-    if (nation) showInfo(nation);
-});
-
-// -------------------------
-// 🎥 FIXED SMOOTH PAN / ZOOM (NO GLITCH)
-// -------------------------
+// --------------------
+// 🎮 CAMERA SYSTEM (FIXED DRAGGING)
+// --------------------
 let scale = 1;
 let x = 0;
 let y = 0;
 
-let isDragging = false;
-let startX = 0;
-let startY = 0;
+let dragging = false;
+let lastX = 0;
+let lastY = 0;
 
-map.style.transformOrigin = "0 0";
+function update() {
+    const t = `translate(${x}px, ${y}px) scale(${scale})`;
+    map.style.transform = t;
+    overlay.style.transform = t;
+}
 
+// --------------------
+// 🖱️ POINTER EVENTS (fixes jitter + ghost drag)
+// --------------------
 map.addEventListener("pointerdown", (e) => {
-    isDragging = true;
-    map.setPointerCapture(e.pointerId);
-
-    startX = e.clientX - x;
-    startY = e.clientY - y;
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
 });
 
-map.addEventListener("pointermove", (e) => {
-    if (!isDragging) return;
+window.addEventListener("pointerup", () => {
+    dragging = false;
+});
 
-    x = e.clientX - startX;
-    y = e.clientY - startY;
+window.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+
+    x += dx;
+    y += dy;
+
+    lastX = e.clientX;
+    lastY = e.clientY;
 
     update();
 });
 
-map.addEventListener("pointerup", () => {
-    isDragging = false;
-});
-
-// prevent ghost drag behavior
-map.addEventListener("dragstart", (e) => e.preventDefault());
-
-// zoom
+// --------------------
+// 🔍 ZOOM (stable, no jump)
+// --------------------
 map.addEventListener("wheel", (e) => {
     e.preventDefault();
 
     const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+
+    const mx = e.clientX - x;
+    const my = e.clientY - y;
+
+    x -= mx * (zoom - 1);
+    y -= my * (zoom - 1);
+
     scale *= zoom;
 
-    scale = Math.min(Math.max(scale, 0.5), 5);
-
     update();
+}, { passive: false });
+
+// --------------------
+// 🎯 CLICK DETECTION (stable + scaled correctly)
+// --------------------
+map.addEventListener("click", (e) => {
+    const rect = map.getBoundingClientRect();
+
+    const px = Math.floor((e.clientX - rect.left) * (mapW / rect.width));
+    const py = Math.floor((e.clientY - rect.top) * (mapH / rect.height));
+
+    const pixel = hctx.getImageData(px, py, 1, 1).data;
+
+    const nation = getNation(pixel);
+
+    if (nation) showNation(nation);
 });
 
-// -------------------------
-// 🎯 APPLY TRANSFORM (single source of truth)
-// -------------------------
-function update() {
-    const transform = `translate(${x}px, ${y}px) scale(${scale})`;
-    map.style.transform = transform;
+// --------------------
+// 📦 UI PANEL
+// --------------------
+function showNation(n) {
+    document.getElementById("infoPanel").classList.remove("hidden");
+
+    document.getElementById("nationName").innerText = n.name;
+    document.getElementById("allies").innerText = n.allies.join(", ");
+    document.getElementById("rivals").innerText = n.rivals.join(", ");
+    document.getElementById("population").innerText = n.population;
+    document.getElementById("provinces").innerText = n.provinces;
+    document.getElementById("tech").innerText = n.tech;
+    document.getElementById("stability").innerText = n.stability;
 }
