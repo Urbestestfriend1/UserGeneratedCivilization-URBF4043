@@ -15,40 +15,36 @@ let mapH = 0;
 // 🧠 Nations (YOU EDIT THIS)
 // --------------------
 const nations = [
-// NORTH AMERICA
     {
         color: [255, 0, 0],
         name: "ALTA",
         allies: [],
         rivals: [],
-        population: "0",
+        population: 0,
         provinces: 0,
         tech: 1,
         stability: "Max"
     },
-
     {
         color: [254, 177, 127],
         name: "Postonorama",
         allies: [],
         rivals: [],
-        population: "0",
+        population: 0,
         provinces: 0,
         tech: 1,
         stability: "Max"
     },
-
     {
         color: [165, 6, 241],
         name: "Ontario",
         allies: [],
         rivals: [],
-        population: "0",
+        population: 0,
         provinces: 0,
         tech: 1,
         stability: "Max"
-    },
-// EUROPE
+    }
 ];
 
 // --------------------
