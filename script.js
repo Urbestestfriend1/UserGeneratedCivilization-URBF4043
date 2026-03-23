@@ -1,30 +1,27 @@
 const map = document.getElementById("map");
-const overlay = document.getElementById("overlay");
-const octx = overlay.getContext("2d");
 
-const buffer = document.getElementById("buffer");
-const bctx = buffer.getContext("2d");
+map.src = "fullmap.png";
+
+// -------------------------
+// Canvas (hidden pixel reader)
+// -------------------------
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d");
 
 const img = new Image();
 img.src = "fullmap.png";
 
-let W, H;
-
 img.onload = () => {
-    W = img.width;
-    H = img.height;
-
-    buffer.width = W;
-    buffer.height = H;
-    overlay.width = W;
-    overlay.height = H;
-
-    bctx.drawImage(img, 0, 0);
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
 };
 
+// -------------------------
+// 🌍 Nation Data (color-tolerant system)
+// -------------------------
 const nations = [
     {
-        id: 1,
         color: [255, 0, 0],
         name: "ALTA",
         allies: [],
@@ -33,92 +30,135 @@ const nations = [
         provinces: 5,
         tech: 1,
         stability: "Max"
-    },
-    {
-        id: 2,
-        color: [255, 0, 0], // duplicate allowed now
-        name: "Second Red Nation",
-        allies: [],
-        rivals: [],
-        population: "80,000",
-        provinces: 3,
-        tech: 1,
-        stability: "Max"
     }
 ];
 
+// -------------------------
+// 🎨 Improved color matching (handles duplicates better)
+// -------------------------
 function colorDistance(a, b) {
-    return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]);
+    return Math.abs(a[0] - b[0]) +
+           Math.abs(a[1] - b[1]) +
+           Math.abs(a[2] - b[2]);
 }
 
+// Group similar pixels more aggressively
 function getNation(pixel) {
-    const p = [pixel[0], pixel[1], pixel[2]];
+    const c = [pixel[0], pixel[1], pixel[2]];
 
-    let matches = [];
+    // ignore ocean / white noise
+    if (c[0] > 245 && c[1] > 245 && c[2] > 245) return null;
+    if (c[0] < 10 && c[1] < 10 && c[2] < 10) return null;
+
+    let best = null;
+    let bestScore = 999999;
 
     for (const n of nations) {
-        const dist = colorDistance(p, n.color);
-        if (dist < 40) {
-            matches.push({ nation: n, dist });
+        const d = colorDistance(c, n.color);
+
+        // MUCH looser threshold to handle duplicates & noisy map
+        if (d < bestScore) {
+            bestScore = d;
+            best = n;
         }
     }
 
-    if (matches.length === 0) return null;
-
-    // pick best match (or first stable one)
-    matches.sort((a,b) => a.dist - b.dist);
-    return matches[0].nation;
+    return bestScore < 80 ? best : null;
 }
 
+// -------------------------
+// 📦 UI
+// -------------------------
+function showInfo(n) {
+    document.getElementById("infoPanel").classList.remove("hidden");
+
+    document.getElementById("nationName").innerText = n.name;
+    document.getElementById("allies").innerText = n.allies.join(", ") || "None";
+    document.getElementById("rivals").innerText = n.rivals.join(", ") || "None";
+    document.getElementById("population").innerText = n.population;
+    document.getElementById("provinces").innerText = n.provinces;
+    document.getElementById("tech").innerText = n.tech;
+    document.getElementById("stability").innerText = n.stability;
+}
+
+// -------------------------
+// 🖱️ CLICK + HOVER
+// -------------------------
+let lastNation = null;
+
+map.addEventListener("pointermove", (e) => {
+    const rect = map.getBoundingClientRect();
+
+    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+    const pixel = ctx.getImageData(x, y, 1, 1).data;
+
+    const nation = getNation(pixel);
+
+    if (nation !== lastNation) {
+        lastNation = nation;
+
+        // simple hover effect (no lag scan!)
+        if (nation) {
+            map.style.filter = "brightness(1.05)";
+        } else {
+            map.style.filter = "none";
+        }
+    }
+});
+
+map.addEventListener("pointerdown", (e) => {
+    const rect = map.getBoundingClientRect();
+
+    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+    const pixel = ctx.getImageData(x, y, 1, 1).data;
+
+    const nation = getNation(pixel);
+
+    if (nation) showInfo(nation);
+});
+
+// -------------------------
+// 🎥 FIXED SMOOTH PAN / ZOOM (NO GLITCH)
+// -------------------------
 let scale = 1;
 let x = 0;
 let y = 0;
 
-let targetX = 0;
-let targetY = 0;
+let isDragging = false;
+let startX = 0;
+let startY = 0;
 
-let dragging = false;
-let lastX, lastY;
+map.style.transformOrigin = "0 0";
 
-map.addEventListener("dragstart", e => e.preventDefault());
+map.addEventListener("pointerdown", (e) => {
+    isDragging = true;
+    map.setPointerCapture(e.pointerId);
 
-map.addEventListener("mousedown", (e) => {
-    dragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    map.style.cursor = "grabbing";
+    startX = e.clientX - x;
+    startY = e.clientY - y;
 });
 
-window.addEventListener("mouseup", () => {
-    dragging = false;
-    map.style.cursor = "grab";
+map.addEventListener("pointermove", (e) => {
+    if (!isDragging) return;
+
+    x = e.clientX - startX;
+    y = e.clientY - startY;
+
+    update();
 });
 
-window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-
-    targetX += (e.clientX - lastX);
-    targetY += (e.clientY - lastY);
-
-    lastX = e.clientX;
-    lastY = e.clientY;
+map.addEventListener("pointerup", () => {
+    isDragging = false;
 });
 
-function animate() {
-    x += (targetX - x) * 0.15;
-    y += (targetY - y) * 0.15;
+// prevent ghost drag behavior
+map.addEventListener("dragstart", (e) => e.preventDefault());
 
-    const transform = `translate(${x}px, ${y}px) scale(${scale})`;
-
-    map.style.transform = transform;
-    overlay.style.transform = transform;
-    buffer.style.transform = transform;
-
-    requestAnimationFrame(animate);
-}
-
-animate();
-
+// zoom
 map.addEventListener("wheel", (e) => {
     e.preventDefault();
 
@@ -126,34 +166,14 @@ map.addEventListener("wheel", (e) => {
     scale *= zoom;
 
     scale = Math.min(Math.max(scale, 0.5), 5);
+
+    update();
 });
 
-let currentNation = null;
-
-map.addEventListener("mousemove", (e) => {
-    const rect = map.getBoundingClientRect();
-
-    const xPos = Math.floor((e.clientX - rect.left) * (W / rect.width));
-    const yPos = Math.floor((e.clientY - rect.top) * (H / rect.height));
-
-    const pixel = bctx.getImageData(xPos, yPos, 1, 1).data;
-
-    currentNation = getNation(pixel);
-});
-
-map.addEventListener("click", () => {
-    if (!currentNation) return;
-    showInfo(currentNation);
-});
-
-function showInfo(n) {
-    document.getElementById("nationName").innerText = n.name;
-    document.getElementById("allies").innerText = n.allies.join(", ");
-    document.getElementById("rivals").innerText = n.rivals.join(", ");
-    document.getElementById("population").innerText = n.population;
-    document.getElementById("provinces").innerText = n.provinces;
-    document.getElementById("tech").innerText = n.tech;
-    document.getElementById("stability").innerText = n.stability;
-
-    document.getElementById("infoPanel").classList.remove("hidden");
+// -------------------------
+// 🎯 APPLY TRANSFORM (single source of truth)
+// -------------------------
+function update() {
+    const transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    map.style.transform = transform;
 }
