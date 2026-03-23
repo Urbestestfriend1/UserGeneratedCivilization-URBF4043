@@ -16,7 +16,7 @@ let mapH = 0;
 // --------------------
 const nations = [
     {
-        color: [255, 0, 0],
+        color: [165, 6, 241],
         name: "ALTA",
         allies: [],
         rivals: [],
